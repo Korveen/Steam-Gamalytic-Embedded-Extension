@@ -34,6 +34,14 @@ A Chrome extension that adds Gamalytic game analytics data as an overlay on Stea
     - Look for the dark overlay box in the top-right corner
     - Click the overlay to open the game's Gamalytic page
 
+## Screenshots
+
+**Compact View (Default):**
+![Compact View](silksong-compact.png)
+
+**Detailed View (On Hover):**
+![Hover View](silksong-hover.png)
+
 ## How it works
 
 The extension automatically detects when you're viewing a Steam app page and:
