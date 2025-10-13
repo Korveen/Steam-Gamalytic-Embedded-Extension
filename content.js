@@ -10,6 +10,10 @@
         }
 
         const d = res.data;
+        const previousData = res.previousData;
+        const lastVisit = res.lastVisit;
+        const cacheAge = res.cacheAge;
+        const isCached = res.cached;
 
         const released = d.unreleased === false;
 
@@ -25,6 +29,37 @@
 
         const wishlists = d.wishlists ?? d?.history?.at(-1)?.wishlists ?? null;
 
+        // Calculate differences if we have previous data
+        let differences = null;
+        if (previousData) {
+            const prevReleased = previousData.unreleased === false;
+            const prevCopiesSold =
+                previousData.copiesSold ??
+                previousData.owners ??
+                previousData?.estimateDetails?.reviewBased ??
+                0;
+            const prevRevenue = previousData.totalRevenue ?? previousData.revenue ?? null;
+            const prevReviewScore =
+                previousData.reviewScore ?? previousData?.history?.at(-1)?.score ?? null;
+            const prevReviewCount =
+                previousData.reviewsSteam ??
+                previousData.reviews ??
+                previousData?.history?.at(-1)?.reviews ??
+                null;
+            const prevWishlists =
+                previousData.wishlists ??
+                previousData?.history?.at(-1)?.wishlists ??
+                null;
+
+            differences = {
+                copiesSold: Number(copiesSold) - Number(prevCopiesSold),
+                revenue: Number(revenue) - Number(prevRevenue),
+                reviewScore: Number(reviewScore) - Number(prevReviewScore),
+                reviewCount: Number(reviewCount) - Number(prevReviewCount),
+                wishlists: Number(wishlists) - Number(prevWishlists),
+            };
+        }
+
         drawOverlay({
             appId,
             released,
@@ -34,6 +69,10 @@
             reviewCount,
             wishlists,
             raw: d,
+            differences,
+            lastVisit,
+            cacheAge,
+            isCached,
         });
     });
 
@@ -49,6 +88,26 @@
         return Number.isFinite(n) ? "$" + Math.round(n).toLocaleString() : String(v);
     }
 
+    function fmtTimeAgo(timestamp) {
+        if (!timestamp) return null;
+        const now = Date.now();
+        const diff = now - timestamp;
+        const minutes = Math.floor(diff / (1000 * 60));
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+        if (days > 0) return `${days}d ago`;
+        if (hours > 0) return `${hours}h ago`;
+        if (minutes > 0) return `${minutes}m ago`;
+        return "Just now";
+    }
+
+    function fmtDiff(value, label) {
+        if (value == null || value === 0) return null;
+        const sign = value > 0 ? "+" : "";
+        return `${sign}${fmtInt(value)} ${label}`;
+    }
+
     function drawOverlay({
         appId,
         released,
@@ -59,6 +118,10 @@
         wishlists,
         error,
         raw,
+        differences,
+        lastVisit,
+        cacheAge,
+        isCached,
     }) {
         const id = "gamalytic-overlay";
         if (document.getElementById(id)) return;
@@ -87,7 +150,7 @@
             window.open(url, "_blank", "noopener");
         });
 
-        const line = (label, value) => {
+        const line = (label, value, diffValue = null) => {
             const row = document.createElement("div");
             row.style.display = "flex";
             row.style.gap = "6px";
@@ -98,38 +161,76 @@
             v.textContent = value;
             v.style.fontWeight = "600";
             row.append(k, v);
+
+            // Add difference if available
+            if (diffValue !== null && diffValue !== 0) {
+                const diff = document.createElement("span");
+                diff.textContent = ` (${diffValue > 0 ? "+" : ""}${fmtInt(diffValue)})`;
+                diff.style.fontSize = "12px";
+                diff.style.opacity = "0.7";
+                diff.style.color = diffValue > 0 ? "#4ade80" : "#f87171";
+                row.append(diff);
+            }
+
             return row;
         };
 
         const header = document.createElement("div");
-        header.textContent = `AppID ${appId}`;
+        const gameTitle =
+            document.querySelector(".apphub_AppName")?.textContent ||
+            document.querySelector("h1")?.textContent ||
+            `AppID ${appId}`;
+        header.textContent = gameTitle;
         header.style.opacity = "0.8";
         header.style.marginBottom = "6px";
         header.style.fontWeight = "600";
+        header.style.fontSize = "11px";
+        header.style.maxWidth = "280px";
+        header.style.overflow = "hidden";
+        header.style.textOverflow = "ellipsis";
+        header.style.whiteSpace = "nowrap";
         box.append(header);
+
+        // Add cache status and time info
+        if (isCached) {
+            const cacheInfo = document.createElement("div");
+            cacheInfo.textContent = `Cached ${fmtTimeAgo(lastVisit)}`;
+            cacheInfo.style.opacity = "0.6";
+            cacheInfo.style.fontSize = "10px";
+            cacheInfo.style.marginBottom = "4px";
+            box.append(cacheInfo);
+        } else if (lastVisit) {
+            const timeInfo = document.createElement("div");
+            timeInfo.textContent = `Last seen ${fmtTimeAgo(lastVisit)}`;
+            timeInfo.style.opacity = "0.6";
+            timeInfo.style.fontSize = "10px";
+            timeInfo.style.marginBottom = "4px";
+            box.append(timeInfo);
+        }
 
         if (released) {
             box.append(
-                line("Copies sold", fmtInt(copiesSold)),
-                line("Gross revenue", fmtMoney(revenue)),
+                line("Copies sold", fmtInt(copiesSold), differences?.copiesSold),
+                line("Gross revenue", fmtMoney(revenue), differences?.revenue),
                 line(
                     "Review score",
                     reviewScore == null
                         ? "N/A"
-                        : `${Math.round(Number(reviewScore))}% (${fmtInt(reviewCount)})`
+                        : `${Math.round(Number(reviewScore))}% (${fmtInt(reviewCount)})`,
+                    differences?.reviewCount
                 )
             );
         } else {
             // unreleased game
             if (!(Number(copiesSold) > 0)) {
-                box.append(line("Wishlists", fmtInt(wishlists)));
+                box.append(line("Wishlists", fmtInt(wishlists), differences?.wishlists));
             }
             box.append(line("Status", "Unreleased"));
         }
 
         // post-release wishlists only if no sales data
         if (released && !(Number(copiesSold) > 0)) {
-            box.append(line("Wishlists", fmtInt(wishlists)));
+            box.append(line("Wishlists", fmtInt(wishlists), differences?.wishlists));
         }
 
         if (error) {
