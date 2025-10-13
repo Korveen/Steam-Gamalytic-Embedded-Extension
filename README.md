@@ -62,4 +62,4 @@ This means fewer API calls while still showing meaningful updates when you revis
 
 ---
 
-If you found this useful & you are into deckbuilding roguelike games consider wishlisting our game [Free of the Land](https://store.steampowered.com/app/3833000/Free_of_the_Land/) on Steam!
+If you found this useful and enjoy deck-building roguelikes, consider wishlisting our game: [Free of the Land](https://store.steampowered.com/app/3833000/Free_of_the_Land/) on Steam!
