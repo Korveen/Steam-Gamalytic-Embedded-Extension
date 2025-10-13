@@ -173,10 +173,16 @@
         if (document.getElementById(id)) return;
 
         const box = document.createElement("div");
+
+        // Calculate position based on page width
+        const pageWidth = window.innerWidth;
+        const rightPosition =
+            pageWidth > 1260 ? `${(pageWidth - 1260) / 2 + 12}px` : "12px";
+
         Object.assign(box.style, {
             position: "fixed",
-            top: "140px",
-            right: "12px",
+            top: "150px",
+            right: rightPosition,
             zIndex: "2147483647",
             background: "rgba(0,0,0,0.84)",
             color: "#fff",
@@ -371,6 +377,17 @@
             releaseDate,
             released,
         });
+
+        // Add resize listener to update position
+        const updatePosition = () => {
+            const pageWidth = window.innerWidth;
+            const rightPosition =
+                pageWidth > 1260 ? `${(pageWidth - 1260) / 2 + 12}px` : "12px";
+            box.style.right = rightPosition;
+        };
+
+        window.addEventListener("resize", updatePosition);
+
         document.body.appendChild(box);
     }
 })();
