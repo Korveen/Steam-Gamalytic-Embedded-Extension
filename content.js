@@ -20,7 +20,13 @@
         const copiesSold =
             d.copiesSold ?? d.owners ?? d?.estimateDetails?.reviewBased ?? 0;
 
-        const revenue = d.totalRevenue ?? d.revenue ?? null;
+        const revenue =
+            d.revenue ??
+            d.totalRevenue ??
+            d.grossRevenue ??
+            d.netRevenue ??
+            d?.estimateDetails?.revenue ??
+            null;
 
         const reviewScore = d.reviewScore ?? d?.history?.at(-1)?.score ?? null;
 
@@ -28,6 +34,13 @@
             d.reviewsSteam ?? d.reviews ?? d?.history?.at(-1)?.reviews ?? null;
 
         const wishlists = d.wishlists ?? d?.history?.at(-1)?.wishlists ?? null;
+
+        // Additional metrics that might be available
+        const peakPlayers = d.peakPlayers ?? d?.history?.at(-1)?.peakPlayers ?? null;
+        const currentPlayers =
+            d.currentPlayers ?? d?.history?.at(-1)?.currentPlayers ?? null;
+        const price = d.price ?? d.currentPrice ?? null;
+        const releaseDate = d.releaseDate ?? d.releasedAt ?? null;
 
         // Calculate differences if we have previous data
         let differences = null;
@@ -38,7 +51,13 @@
                 previousData.owners ??
                 previousData?.estimateDetails?.reviewBased ??
                 0;
-            const prevRevenue = previousData.totalRevenue ?? previousData.revenue ?? null;
+            const prevRevenue =
+                previousData.revenue ??
+                previousData.totalRevenue ??
+                previousData.grossRevenue ??
+                previousData.netRevenue ??
+                previousData?.estimateDetails?.revenue ??
+                null;
             const prevReviewScore =
                 previousData.reviewScore ?? previousData?.history?.at(-1)?.score ?? null;
             const prevReviewCount =
@@ -68,6 +87,10 @@
             reviewScore,
             reviewCount,
             wishlists,
+            peakPlayers,
+            currentPlayers,
+            price,
+            releaseDate,
             raw: d,
             differences,
             lastVisit,
@@ -82,10 +105,29 @@
         return Number.isFinite(n) ? n.toLocaleString() : String(v);
     }
 
+    function fmtCompact(v) {
+        if (v == null || v === "N/A") return "N/A";
+        const n = Number(v);
+        if (!Number.isFinite(n)) return String(v);
+
+        if (n >= 1000000) {
+            return (n / 1000000).toFixed(1) + "m";
+        } else if (n >= 1000) {
+            return (n / 1000).toFixed(1) + "k";
+        }
+        return n.toLocaleString();
+    }
+
     function fmtMoney(v) {
         if (v == null) return "N/A";
         const n = Number(v);
         return Number.isFinite(n) ? "$" + Math.round(n).toLocaleString() : String(v);
+    }
+
+    function fmtPrice(v) {
+        if (v == null) return "N/A";
+        const n = Number(v);
+        return Number.isFinite(n) ? "$" + n.toFixed(2) : String(v);
     }
 
     function fmtTimeAgo(timestamp) {
@@ -116,6 +158,10 @@
         reviewScore,
         reviewCount,
         wishlists,
+        peakPlayers,
+        currentPlayers,
+        price,
+        releaseDate,
         error,
         raw,
         differences,
@@ -135,16 +181,50 @@
             background: "rgba(0,0,0,0.84)",
             color: "#fff",
             font: "12px/1.45 system-ui, -apple-system, Segoe UI, Arial",
-            padding: "10px 12px",
-            borderRadius: "8px",
+            padding: "8px 10px",
+            borderRadius: "6px",
             boxShadow: "0 2px 10px rgba(0,0,0,0.45)",
-            maxWidth: "300px",
+            maxWidth: "200px",
             pointerEvents: "auto",
             whiteSpace: "nowrap",
             cursor: "pointer",
+            transition: "all 0.2s ease",
         });
         box.id = id;
         box.title = "Open on Gamalytic";
+
+        // Create compact view
+        const compactView = document.createElement("div");
+        compactView.style.display = "flex";
+        compactView.style.flexDirection = "column";
+        compactView.style.gap = "2px";
+        compactView.style.fontSize = "11px";
+
+        // Create detailed view
+        const detailedView = document.createElement("div");
+        detailedView.style.display = "none";
+        detailedView.style.flexDirection = "column";
+        detailedView.style.gap = "4px";
+
+        // Add both views to box
+        box.appendChild(compactView);
+        box.appendChild(detailedView);
+
+        // Hover events
+        box.addEventListener("mouseenter", () => {
+            compactView.style.display = "none";
+            detailedView.style.display = "flex";
+            box.style.maxWidth = "300px";
+            box.style.padding = "10px 12px";
+        });
+
+        box.addEventListener("mouseleave", () => {
+            compactView.style.display = "flex";
+            detailedView.style.display = "none";
+            box.style.maxWidth = "200px";
+            box.style.padding = "8px 10px";
+        });
+
         box.addEventListener("click", () => {
             const url = `https://gamalytic.com/game/${appId}`;
             window.open(url, "_blank", "noopener");
@@ -175,6 +255,28 @@
             return row;
         };
 
+        // Compact view content
+        if (released) {
+            const soldText = `Sold: ${fmtCompact(copiesSold)}`;
+            const revenueText = `Revenue: ${fmtCompact(revenue)}`;
+            const reviewText = `Reviews: ${
+                reviewScore ? Math.round(Number(reviewScore)) + "%" : "N/A"
+            }`;
+
+            compactView.innerHTML = `
+                <div style="font-weight: 600;">${soldText}</div>
+                <div style="font-weight: 600;">${revenueText}</div>
+                <div style="font-weight: 600;">${reviewText}</div>
+            `;
+        } else {
+            const wishlistText = `Wishlists: ${fmtCompact(wishlists)}`;
+            compactView.innerHTML = `
+                <div style="font-weight: 600;">${wishlistText}</div>
+                <div style="font-weight: 600;">Status: Unreleased</div>
+            `;
+        }
+
+        // Detailed view header
         const header = document.createElement("div");
         const gameTitle =
             document.querySelector(".apphub_AppName")?.textContent ||
@@ -189,7 +291,7 @@
         header.style.overflow = "hidden";
         header.style.textOverflow = "ellipsis";
         header.style.whiteSpace = "nowrap";
-        box.append(header);
+        detailedView.append(header);
 
         // Add cache status and time info
         if (isCached) {
@@ -198,18 +300,18 @@
             cacheInfo.style.opacity = "0.6";
             cacheInfo.style.fontSize = "10px";
             cacheInfo.style.marginBottom = "4px";
-            box.append(cacheInfo);
+            detailedView.append(cacheInfo);
         } else if (lastVisit) {
             const timeInfo = document.createElement("div");
             timeInfo.textContent = `Last seen ${fmtTimeAgo(lastVisit)}`;
             timeInfo.style.opacity = "0.6";
             timeInfo.style.fontSize = "10px";
             timeInfo.style.marginBottom = "4px";
-            box.append(timeInfo);
+            detailedView.append(timeInfo);
         }
 
         if (released) {
-            box.append(
+            detailedView.append(
                 line("Copies sold", fmtInt(copiesSold), differences?.copiesSold),
                 line("Gross revenue", fmtMoney(revenue), differences?.revenue),
                 line(
@@ -220,17 +322,32 @@
                     differences?.reviewCount
                 )
             );
+
+            // Show additional metrics if available
+            if (peakPlayers) {
+                detailedView.append(line("Peak players", fmtInt(peakPlayers)));
+            }
+            if (currentPlayers) {
+                detailedView.append(line("Current players", fmtInt(currentPlayers)));
+            }
         } else {
             // unreleased game
             if (!(Number(copiesSold) > 0)) {
-                box.append(line("Wishlists", fmtInt(wishlists), differences?.wishlists));
+                detailedView.append(
+                    line("Wishlists", fmtInt(wishlists), differences?.wishlists)
+                );
             }
-            box.append(line("Status", "Unreleased"));
+            if (releaseDate) {
+                detailedView.append(line("Release date", releaseDate));
+            }
+            detailedView.append(line("Status", "Unreleased"));
         }
 
         // post-release wishlists only if no sales data
         if (released && !(Number(copiesSold) > 0)) {
-            box.append(line("Wishlists", fmtInt(wishlists), differences?.wishlists));
+            detailedView.append(
+                line("Wishlists", fmtInt(wishlists), differences?.wishlists)
+            );
         }
 
         if (error) {
@@ -238,10 +355,22 @@
             err.textContent = `API error: ${error}`;
             err.style.marginTop = "6px";
             err.style.opacity = "0.7";
-            box.append(err);
+            detailedView.append(err);
         }
 
-        console.debug("[Gamalytic]", raw);
+        console.debug("[Gamalytic] Raw API response:", raw);
+        console.debug("[Gamalytic] Extracted values:", {
+            copiesSold,
+            revenue,
+            reviewScore,
+            reviewCount,
+            wishlists,
+            peakPlayers,
+            currentPlayers,
+            price,
+            releaseDate,
+            released,
+        });
         document.body.appendChild(box);
     }
 })();
