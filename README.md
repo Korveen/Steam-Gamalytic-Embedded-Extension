@@ -59,3 +59,7 @@ The extension uses smart caching to reduce API calls and show data changes:
 -   **Differences**: Shows changes since last visit (green for increases, red for decreases)
 
 This means fewer API calls while still showing meaningful updates when you revisit games.
+
+---
+
+If you found this useful & you are into deckbuilding roguelike games consider wishlisting our game [Free of the Land](https://store.steampowered.com/app/3833000/Free_of_the_Land/) on Steam!
