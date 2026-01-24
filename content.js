@@ -3,6 +3,64 @@
     if (!m) return;
     const appId = m[1];
 
+    // Localization system
+    const translations = {
+        en: {
+            title: "Gamalytic Analytics",
+            error: "Error",
+            copiesSold: "Copies sold",
+            revenue: "Revenue",
+            reviewScore: "Review score",
+            peakPlayers: "Peak players",
+            currentPlayers: "Current players",
+            wishlists: "Wishlists",
+            releaseDate: "Release date",
+            status: "Status",
+            unreleased: "Unreleased",
+            cache: "Cache:",
+            openOnGamalytic: "Open on Gamalytic →",
+            reviews: "reviews",
+            months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            timeAgo: {
+                days: (n) => `${n}d ago`,
+                hours: (n) => `${n}h ago`,
+                minutes: (n) => `${n}m ago`,
+                justNow: "Just now"
+            }
+        },
+        ru: {
+            title: "Gamalytic Analytics",
+            error: "Ошибка",
+            copiesSold: "Продано копий",
+            revenue: "Доход",
+            reviewScore: "Оценка",
+            peakPlayers: "Пик игроков",
+            currentPlayers: "Игроков сейчас",
+            wishlists: "Списки желаний",
+            releaseDate: "Дата выхода",
+            status: "Статус",
+            unreleased: "Не выпущено",
+            cache: "Кэш:",
+            openOnGamalytic: "Открыть на Gamalytic →",
+            reviews: "отзывов",
+            months: ['янв.', 'фев.', 'мар.', 'апр.', 'май', 'июн.', 'июл.', 'авг.', 'сен.', 'окт.', 'ноя.', 'дек.'],
+            timeAgo: {
+                days: (n) => `${n}д назад`,
+                hours: (n) => `${n}ч назад`,
+                minutes: (n) => `${n}м назад`,
+                justNow: "Только что"
+            }
+        }
+    };
+
+    // Get current language from storage (default: en)
+    let currentLang = 'en';
+
+    // Get translation function
+    function t(key) {
+        return translations[currentLang]?.[key] || translations.ru[key] || key;
+    }
+
     chrome.runtime.sendMessage({ type: "fetchGamalytic", appId }, (res) => {
         if (!res?.ok || !res.data) {
             drawOverlay({ appId, released: false, error: res?.error || "No data" });
@@ -138,10 +196,11 @@
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-        if (days > 0) return `${days}d ago`;
-        if (hours > 0) return `${hours}h ago`;
-        if (minutes > 0) return `${minutes}m ago`;
-        return "Just now";
+        const timeAgo = t('timeAgo');
+        if (days > 0) return timeAgo.days(days);
+        if (hours > 0) return timeAgo.hours(hours);
+        if (minutes > 0) return timeAgo.minutes(minutes);
+        return timeAgo.justNow;
     }
 
     function fmtDiff(value, label) {
@@ -177,13 +236,17 @@
             return dateStr; // Return original if can't parse
         }
 
-        // Format as "30 апр. 2025 г." (Steam style)
-        const months = ['янв.', 'фев.', 'мар.', 'апр.', 'май', 'июн.', 'июл.', 'авг.', 'сен.', 'окт.', 'ноя.', 'дек.'];
+        // Format with localized months
+        const months = t('months');
         const day = date.getDate();
         const month = months[date.getMonth()];
         const year = date.getFullYear();
         
-        return `${day} ${month} ${year} г.`;
+        if (currentLang === 'ru') {
+            return `${day} ${month} ${year} г.`;
+        } else {
+            return `${month} ${day}, ${year}`;
+        }
     }
 
     // Find Steam's right sidebar info block
@@ -256,213 +319,220 @@
         const id = "gamalytic-info-block";
         if (document.getElementById(id)) return;
 
-        // Wait for Steam page to load
-        const tryInsert = () => {
-            const container = findInsertionPoint();
-            if (!container) {
-                setTimeout(tryInsert, 100);
-                return;
+        // Load language from storage before rendering
+        chrome.storage.local.get(['gamalytic_lang'], (result) => {
+            if (result.gamalytic_lang && (result.gamalytic_lang === 'ru' || result.gamalytic_lang === 'en')) {
+                currentLang = result.gamalytic_lang;
             }
 
-            // Create main container with Steam tag-like styling
-            const mainContainer = document.createElement("div");
-            mainContainer.id = id;
-            mainContainer.style.marginTop = "12px";
-            mainContainer.style.marginBottom = "12px";
-            mainContainer.style.paddingRight = "19px";
-            mainContainer.style.width = "auto";
-            mainContainer.style.maxWidth = "100%";
-            mainContainer.style.boxSizing = "border-box";
+            // Wait for Steam page to load
+            const tryInsert = () => {
+                const container = findInsertionPoint();
+                if (!container) {
+                    setTimeout(tryInsert, 100);
+                    return;
+                }
 
-            // Create inner block with blue background (like Steam tags)
-            const infoBlock = document.createElement("div");
-            infoBlock.style.backgroundColor = "#1b2838";
-            infoBlock.style.borderRadius = "3px";
-            infoBlock.style.padding = "12px";
-            infoBlock.style.border = "1px solid #2a475e";
-            infoBlock.style.width = "auto";
-            infoBlock.style.maxWidth = "100%";
-            infoBlock.style.boxSizing = "border-box";
+                // Create main container with Steam tag-like styling
+                const mainContainer = document.createElement("div");
+                mainContainer.id = id;
+                mainContainer.style.marginTop = "12px";
+                mainContainer.style.marginBottom = "12px";
+                mainContainer.style.paddingRight = "19px";
+                mainContainer.style.width = "auto";
+                mainContainer.style.maxWidth = "100%";
+                mainContainer.style.boxSizing = "border-box";
 
-            // Create header
-            const header = document.createElement("div");
-            header.style.marginBottom = "10px";
-            header.style.paddingBottom = "8px";
-            header.style.borderBottom = "1px solid #2a475e";
-            
-            const headerTitle = document.createElement("div");
-            headerTitle.textContent = "Gamalytic Analytics";
-            headerTitle.style.color = "#66C0F4";
-            headerTitle.style.fontSize = "13px";
-            headerTitle.style.fontWeight = "600";
-            headerTitle.style.letterSpacing = "0.5px";
-            header.appendChild(headerTitle);
+                // Create inner block with blue background (like Steam tags)
+                const infoBlock = document.createElement("div");
+                infoBlock.style.backgroundColor = "#1b2838";
+                infoBlock.style.borderRadius = "3px";
+                infoBlock.style.padding = "12px";
+                infoBlock.style.border = "1px solid #2a475e";
+                infoBlock.style.width = "auto";
+                infoBlock.style.maxWidth = "100%";
+                infoBlock.style.boxSizing = "border-box";
 
-            // Create content container
-            const contentContainer = document.createElement("div");
-            contentContainer.style.display = "flex";
-            contentContainer.style.flexDirection = "column";
-            contentContainer.style.gap = "6px";
+                // Create header (без переключателя языка)
+                const header = document.createElement("div");
+                header.style.marginBottom = "10px";
+                header.style.paddingBottom = "8px";
+                header.style.borderBottom = "1px solid #2a475e";
+                
+                const headerTitle = document.createElement("div");
+                headerTitle.textContent = t('title');
+                headerTitle.style.color = "#66C0F4";
+                headerTitle.style.fontSize = "13px";
+                headerTitle.style.fontWeight = "600";
+                headerTitle.style.letterSpacing = "0.5px";
+                header.appendChild(headerTitle);
 
-            // Helper to create metric row (Steam-style)
-            const createMetricRow = (labelText, value, diffValue = null, link = null) => {
-                const row = document.createElement("div");
-                row.style.display = "flex";
-                row.style.justifyContent = "space-between";
-                row.style.alignItems = "flex-start";
-                row.style.marginBottom = "4px";
+                // Create content container
+                const contentContainer = document.createElement("div");
+                contentContainer.style.display = "flex";
+                contentContainer.style.flexDirection = "column";
+                contentContainer.style.gap = "6px";
 
-                const labelDiv = document.createElement("div");
-                labelDiv.textContent = labelText;
-                labelDiv.style.color = "#8F98A0";
-                labelDiv.style.fontSize = "12px";
-                labelDiv.style.flexShrink = "0";
-                labelDiv.style.width = "140px";
+                // Helper to create metric row (Steam-style)
+                const createMetricRow = (labelText, value, diffValue = null, link = null) => {
+                    const row = document.createElement("div");
+                    row.style.display = "flex";
+                    row.style.justifyContent = "space-between";
+                    row.style.alignItems = "flex-start";
+                    row.style.marginBottom = "4px";
 
-                const valueDiv = document.createElement("div");
-                valueDiv.style.flex = "1";
-                valueDiv.style.textAlign = "right";
-                valueDiv.style.display = "flex";
-                valueDiv.style.flexDirection = "column";
-                valueDiv.style.alignItems = "flex-end";
-                valueDiv.style.gap = "2px";
+                    const labelDiv = document.createElement("div");
+                    labelDiv.textContent = labelText;
+                    labelDiv.style.color = "#8F98A0";
+                    labelDiv.style.fontSize = "12px";
+                    labelDiv.style.flexShrink = "0";
+                    labelDiv.style.width = "140px";
 
-                const valueSpan = document.createElement(link ? "a" : "span");
-                if (link) {
-                    valueSpan.href = link;
-                    valueSpan.target = "_blank";
-                    valueSpan.style.color = "#66C0F4";
-                    valueSpan.style.textDecoration = "none";
-                    valueSpan.addEventListener("mouseenter", () => {
-                        valueSpan.style.textDecoration = "underline";
-                    });
-                    valueSpan.addEventListener("mouseleave", () => {
+                    const valueDiv = document.createElement("div");
+                    valueDiv.style.flex = "1";
+                    valueDiv.style.textAlign = "right";
+                    valueDiv.style.display = "flex";
+                    valueDiv.style.flexDirection = "column";
+                    valueDiv.style.alignItems = "flex-end";
+                    valueDiv.style.gap = "2px";
+
+                    const valueSpan = document.createElement(link ? "a" : "span");
+                    if (link) {
+                        valueSpan.href = link;
+                        valueSpan.target = "_blank";
+                        valueSpan.style.color = "#66C0F4";
                         valueSpan.style.textDecoration = "none";
-                    });
+                        valueSpan.addEventListener("mouseenter", () => {
+                            valueSpan.style.textDecoration = "underline";
+                        });
+                        valueSpan.addEventListener("mouseleave", () => {
+                            valueSpan.style.textDecoration = "none";
+                        });
+                    } else {
+                        valueSpan.style.color = "#FFFFFF";
+                    }
+                    valueSpan.textContent = value;
+                    valueSpan.style.fontSize = "12px";
+                    valueSpan.style.fontWeight = "500";
+
+                    valueDiv.appendChild(valueSpan);
+
+                    // Add difference if available
+                    if (diffValue !== null && diffValue !== 0) {
+                        const diffSpan = document.createElement("span");
+                        diffSpan.textContent = `${diffValue > 0 ? "+" : ""}${fmtInt(diffValue)}`;
+                        diffSpan.style.color = diffValue > 0 ? "#5C7E10" : "#A34C25";
+                        diffSpan.style.fontSize = "11px";
+                        diffSpan.style.fontWeight = "400";
+                        valueDiv.appendChild(diffSpan);
+                    }
+
+                    row.appendChild(labelDiv);
+                    row.appendChild(valueDiv);
+                    return row;
+                };
+
+                // Add metrics based on game status
+                if (error) {
+                    contentContainer.appendChild(createMetricRow(t('error'), error));
+                } else if (released) {
+                    contentContainer.appendChild(
+                        createMetricRow(t('copiesSold'), fmtInt(copiesSold), differences?.copiesSold)
+                    );
+                    if (revenue) {
+                        contentContainer.appendChild(
+                            createMetricRow(t('revenue'), fmtMoney(revenue), differences?.revenue)
+                        );
+                    }
+                    if (reviewScore != null) {
+                        const reviewText = `${Math.round(Number(reviewScore))}% (${fmtInt(reviewCount)})`;
+                        contentContainer.appendChild(
+                            createMetricRow(t('reviewScore'), reviewText, differences?.reviewCount)
+                        );
+                    }
+                    if (peakPlayers) {
+                        contentContainer.appendChild(createMetricRow(t('peakPlayers'), fmtInt(peakPlayers)));
+                    }
+                    if (currentPlayers) {
+                        contentContainer.appendChild(createMetricRow(t('currentPlayers'), fmtInt(currentPlayers)));
+                    }
                 } else {
-                    valueSpan.style.color = "#FFFFFF";
-                }
-                valueSpan.textContent = value;
-                valueSpan.style.fontSize = "12px";
-                valueSpan.style.fontWeight = "500";
-
-                valueDiv.appendChild(valueSpan);
-
-                // Add difference if available
-                if (diffValue !== null && diffValue !== 0) {
-                    const diffSpan = document.createElement("span");
-                    diffSpan.textContent = `${diffValue > 0 ? "+" : ""}${fmtInt(diffValue)}`;
-                    diffSpan.style.color = diffValue > 0 ? "#5C7E10" : "#A34C25";
-                    diffSpan.style.fontSize = "11px";
-                    diffSpan.style.fontWeight = "400";
-                    valueDiv.appendChild(diffSpan);
+                    if (wishlists) {
+                        contentContainer.appendChild(
+                            createMetricRow(t('wishlists'), fmtInt(wishlists), differences?.wishlists)
+                        );
+                    }
+                    if (releaseDate) {
+                        contentContainer.appendChild(createMetricRow(t('releaseDate'), fmtDate(releaseDate)));
+                    }
+                    contentContainer.appendChild(createMetricRow(t('status'), t('unreleased')));
                 }
 
-                row.appendChild(labelDiv);
-                row.appendChild(valueDiv);
-                return row;
+                // Add cache info (smaller, at bottom)
+                if (isCached && lastVisit) {
+                    const cacheInfo = document.createElement("div");
+                    cacheInfo.textContent = `${t('cache')} ${fmtTimeAgo(lastVisit)}`;
+                    cacheInfo.style.color = "#6D7882";
+                    cacheInfo.style.fontSize = "10px";
+                    cacheInfo.style.marginTop = "8px";
+                    cacheInfo.style.paddingTop = "8px";
+                    cacheInfo.style.borderTop = "1px solid #2a475e";
+                    cacheInfo.style.textAlign = "center";
+                    contentContainer.appendChild(cacheInfo);
+                }
+
+                // Add link to Gamalytic
+                const linkContainer = document.createElement("div");
+                linkContainer.style.marginTop = "8px";
+                linkContainer.style.paddingTop = "8px";
+                linkContainer.style.borderTop = "1px solid #2a475e";
+                linkContainer.style.textAlign = "center";
+                
+                const link = document.createElement("a");
+                link.href = `https://gamalytic.com/game/${appId}`;
+                link.target = "_blank";
+                link.textContent = t('openOnGamalytic');
+                link.style.color = "#66C0F4";
+                link.style.fontSize = "11px";
+                link.style.textDecoration = "none";
+                link.style.fontWeight = "500";
+                link.addEventListener("mouseenter", () => {
+                    link.style.textDecoration = "underline";
+                });
+                link.addEventListener("mouseleave", () => {
+                    link.style.textDecoration = "none";
+                });
+                linkContainer.appendChild(link);
+                contentContainer.appendChild(linkContainer);
+
+                // Assemble block
+                infoBlock.appendChild(header);
+                infoBlock.appendChild(contentContainer);
+                mainContainer.appendChild(infoBlock);
+
+                // Insert after publisher or at the end of container
+                const publisherRow = container.querySelector('.dev_row:has(a[href*="/publisher/"])') ||
+                                    Array.from(container.querySelectorAll('.dev_row')).find(row => 
+                                        row.textContent.includes('ИЗДАТЕЛЬ') || 
+                                        row.textContent.includes('PUBLISHER')
+                                    );
+
+                if (publisherRow && publisherRow.nextSibling) {
+                    container.insertBefore(mainContainer, publisherRow.nextSibling);
+                } else if (publisherRow) {
+                    container.appendChild(mainContainer);
+                } else {
+                    container.appendChild(mainContainer);
+                }
             };
 
-            // Add metrics based on game status
-            if (error) {
-                contentContainer.appendChild(createMetricRow("Ошибка", error));
-            } else if (released) {
-                contentContainer.appendChild(
-                    createMetricRow("Продано копий", fmtInt(copiesSold), differences?.copiesSold)
-                );
-                if (revenue) {
-                    contentContainer.appendChild(
-                        createMetricRow("Доход", fmtMoney(revenue), differences?.revenue)
-                    );
-                }
-                if (reviewScore != null) {
-                    const reviewText = `${Math.round(Number(reviewScore))}% (${fmtInt(reviewCount)})`;
-                    contentContainer.appendChild(
-                        createMetricRow("Оценка", reviewText, differences?.reviewCount)
-                    );
-                }
-                if (peakPlayers) {
-                    contentContainer.appendChild(createMetricRow("Пик игроков", fmtInt(peakPlayers)));
-                }
-                if (currentPlayers) {
-                    contentContainer.appendChild(createMetricRow("Игроков сейчас", fmtInt(currentPlayers)));
-                }
+            // Start trying to insert
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", tryInsert);
             } else {
-                if (wishlists) {
-                    contentContainer.appendChild(
-                        createMetricRow("Списки желаний", fmtInt(wishlists), differences?.wishlists)
-                    );
-                }
-                if (releaseDate) {
-                    contentContainer.appendChild(createMetricRow("Дата выхода", fmtDate(releaseDate)));
-                }
-                contentContainer.appendChild(createMetricRow("Статус", "Не выпущено"));
+                tryInsert();
             }
-
-            // Add cache info (smaller, at bottom)
-            if (isCached && lastVisit) {
-                const cacheInfo = document.createElement("div");
-                cacheInfo.textContent = `Кэш: ${fmtTimeAgo(lastVisit)}`;
-                cacheInfo.style.color = "#6D7882";
-                cacheInfo.style.fontSize = "10px";
-                cacheInfo.style.marginTop = "8px";
-                cacheInfo.style.paddingTop = "8px";
-                cacheInfo.style.borderTop = "1px solid #2a475e";
-                cacheInfo.style.textAlign = "center";
-                contentContainer.appendChild(cacheInfo);
-            }
-
-            // Add link to Gamalytic
-            const linkContainer = document.createElement("div");
-            linkContainer.style.marginTop = "8px";
-            linkContainer.style.paddingTop = "8px";
-            linkContainer.style.borderTop = "1px solid #2a475e";
-            linkContainer.style.textAlign = "center";
-            
-            const link = document.createElement("a");
-            link.href = `https://gamalytic.com/game/${appId}`;
-            link.target = "_blank";
-            link.textContent = "Открыть на Gamalytic →";
-            link.style.color = "#66C0F4";
-            link.style.fontSize = "11px";
-            link.style.textDecoration = "none";
-            link.style.fontWeight = "500";
-            link.addEventListener("mouseenter", () => {
-                link.style.textDecoration = "underline";
-            });
-            link.addEventListener("mouseleave", () => {
-                link.style.textDecoration = "none";
-            });
-            linkContainer.appendChild(link);
-            contentContainer.appendChild(linkContainer);
-
-            // Assemble block
-            infoBlock.appendChild(header);
-            infoBlock.appendChild(contentContainer);
-            mainContainer.appendChild(infoBlock);
-
-            // Insert after publisher or at the end of container
-            const publisherRow = container.querySelector('.dev_row:has(a[href*="/publisher/"])') ||
-                                Array.from(container.querySelectorAll('.dev_row')).find(row => 
-                                    row.textContent.includes('ИЗДАТЕЛЬ') || 
-                                    row.textContent.includes('PUBLISHER')
-                                );
-
-            if (publisherRow && publisherRow.nextSibling) {
-                container.insertBefore(mainContainer, publisherRow.nextSibling);
-            } else if (publisherRow) {
-                container.appendChild(mainContainer);
-            } else {
-                container.appendChild(mainContainer);
-            }
-        };
-
-        // Start trying to insert
-        if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", tryInsert);
-        } else {
-            tryInsert();
-        }
+        });
 
         console.debug("[Gamalytic] Raw API response:", raw);
         console.debug("[Gamalytic] Extracted values:", {
