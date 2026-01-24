@@ -1,6 +1,6 @@
 {
 	"manifest_version": 3,
-	"name": "Steam + Gamalytic overlay",
+	"name": "Steam + Gamalytic Embedded Analytics",
 	"version": "0.0.4",
 	"permissions": ["storage"],
 	"host_permissions":
@@ -20,7 +20,7 @@
 	},
 	"action":
 	{
-		"default_title": "Steam + Gamalytic overlay",
+		"default_title": "Steam + Gamalytic Embedded Analytics",
 		"default_popup": "popup.html"
 	}
 }

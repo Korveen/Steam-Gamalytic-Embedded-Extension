@@ -65,5 +65,3 @@ The extension uses smart caching to reduce API calls and show data changes:
 -   **Differences**: Shows changes since last visit (green for increases, red for decreases)
 
 This means fewer API calls while still showing meaningful updates when you revisit games.
-
----
