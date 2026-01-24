@@ -150,6 +150,90 @@
         return `${sign}${fmtInt(value)} ${label}`;
     }
 
+    // Format release date to readable format
+    function fmtDate(dateStr) {
+        if (!dateStr) return "N/A";
+        
+        // Try to parse as ISO date string
+        let date = null;
+        if (typeof dateStr === 'string') {
+            // Try ISO format first
+            date = new Date(dateStr);
+            if (isNaN(date.getTime())) {
+                // Try timestamp
+                const timestamp = parseInt(dateStr);
+                if (!isNaN(timestamp)) {
+                    date = new Date(timestamp * 1000); // if seconds
+                    if (isNaN(date.getTime())) {
+                        date = new Date(timestamp); // if milliseconds
+                    }
+                }
+            }
+        } else if (typeof dateStr === 'number') {
+            date = new Date(dateStr > 10000000000 ? dateStr : dateStr * 1000);
+        }
+
+        if (!date || isNaN(date.getTime())) {
+            return dateStr; // Return original if can't parse
+        }
+
+        // Format as "30 апр. 2025 г." (Steam style)
+        const months = ['янв.', 'фев.', 'мар.', 'апр.', 'май', 'июн.', 'июл.', 'авг.', 'сен.', 'окт.', 'ноя.', 'дек.'];
+        const day = date.getDate();
+        const month = months[date.getMonth()];
+        const year = date.getFullYear();
+        
+        return `${day} ${month} ${year} г.`;
+    }
+
+    // Find Steam's right sidebar info block
+    function findSteamInfoBlock() {
+        // Try multiple selectors for Steam's right column
+        const selectors = [
+            '.rightcol.game_rightcol',
+            '.game_rightcol',
+            '.rightcol',
+            '[class*="rightcol"]',
+            '.block_content',
+        ];
+
+        for (const selector of selectors) {
+            const block = document.querySelector(selector);
+            if (block) return block;
+        }
+
+        // Fallback: find block with publisher/developer info
+        const devRow = document.querySelector('.dev_row');
+        if (devRow) {
+            return devRow.closest('.block_content') || devRow.parentElement;
+        }
+
+        return null;
+    }
+
+    // Find insertion point (after publisher block)
+    function findInsertionPoint() {
+        // Look for publisher row
+        const publisherRow = document.querySelector('.dev_row:has(a[href*="/publisher/"])') ||
+                            Array.from(document.querySelectorAll('.dev_row')).find(row => 
+                                row.textContent.includes('ИЗДАТЕЛЬ') || 
+                                row.textContent.includes('PUBLISHER')
+                            );
+
+        if (publisherRow) {
+            return publisherRow.parentElement;
+        }
+
+        // Fallback: find any dev_row container
+        const devRow = document.querySelector('.dev_row');
+        if (devRow) {
+            return devRow.parentElement;
+        }
+
+        // Last resort: find block_content
+        return document.querySelector('.block_content');
+    }
+
     function drawOverlay({
         appId,
         released,
@@ -169,199 +253,215 @@
         cacheAge,
         isCached,
     }) {
-        const id = "gamalytic-overlay";
+        const id = "gamalytic-info-block";
         if (document.getElementById(id)) return;
 
-        const box = document.createElement("div");
-
-        // Calculate position based on page width
-        const pageWidth = window.innerWidth;
-        const rightPosition =
-            pageWidth > 1260 ? `${(pageWidth - 1260) / 2 + 12}px` : "12px";
-
-        Object.assign(box.style, {
-            position: "fixed",
-            top: "150px",
-            right: rightPosition,
-            zIndex: "2147483647",
-            background: "rgba(0,0,0,0.84)",
-            color: "#fff",
-            font: "12px/1.45 system-ui, -apple-system, Segoe UI, Arial",
-            padding: "8px 10px",
-            borderRadius: "6px",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.45)",
-            maxWidth: "200px",
-            pointerEvents: "auto",
-            whiteSpace: "nowrap",
-            cursor: "pointer",
-            transition: "all 0.2s ease",
-        });
-        box.id = id;
-        box.title = "Open on Gamalytic";
-
-        // Create compact view
-        const compactView = document.createElement("div");
-        compactView.style.display = "flex";
-        compactView.style.flexDirection = "column";
-        compactView.style.gap = "2px";
-        compactView.style.fontSize = "11px";
-
-        // Create detailed view
-        const detailedView = document.createElement("div");
-        detailedView.style.display = "none";
-        detailedView.style.flexDirection = "column";
-        detailedView.style.gap = "4px";
-
-        // Add both views to box
-        box.appendChild(compactView);
-        box.appendChild(detailedView);
-
-        // Hover events
-        box.addEventListener("mouseenter", () => {
-            compactView.style.display = "none";
-            detailedView.style.display = "flex";
-            box.style.maxWidth = "300px";
-            box.style.padding = "10px 12px";
-        });
-
-        box.addEventListener("mouseleave", () => {
-            compactView.style.display = "flex";
-            detailedView.style.display = "none";
-            box.style.maxWidth = "200px";
-            box.style.padding = "8px 10px";
-        });
-
-        box.addEventListener("click", () => {
-            const url = `https://gamalytic.com/game/${appId}`;
-            window.open(url, "_blank", "noopener");
-        });
-
-        const line = (label, value, diffValue = null) => {
-            const row = document.createElement("div");
-            row.style.display = "flex";
-            row.style.gap = "6px";
-            const k = document.createElement("span");
-            k.textContent = label + ":";
-            k.style.opacity = "0.75";
-            const v = document.createElement("span");
-            v.textContent = value;
-            v.style.fontWeight = "600";
-            row.append(k, v);
-
-            // Add difference if available
-            if (diffValue !== null && diffValue !== 0) {
-                const diff = document.createElement("span");
-                diff.textContent = ` (${diffValue > 0 ? "+" : ""}${fmtInt(diffValue)})`;
-                diff.style.fontSize = "12px";
-                diff.style.opacity = "0.7";
-                diff.style.color = diffValue > 0 ? "#4ade80" : "#f87171";
-                row.append(diff);
+        // Wait for Steam page to load
+        const tryInsert = () => {
+            const container = findInsertionPoint();
+            if (!container) {
+                setTimeout(tryInsert, 100);
+                return;
             }
 
-            return row;
+            // Create main container with Steam tag-like styling
+            const mainContainer = document.createElement("div");
+            mainContainer.id = id;
+            mainContainer.style.marginTop = "12px";
+            mainContainer.style.marginBottom = "12px";
+            mainContainer.style.paddingRight = "19px";
+            mainContainer.style.width = "auto";
+            mainContainer.style.maxWidth = "100%";
+            mainContainer.style.boxSizing = "border-box";
+
+            // Create inner block with blue background (like Steam tags)
+            const infoBlock = document.createElement("div");
+            infoBlock.style.backgroundColor = "#1b2838";
+            infoBlock.style.borderRadius = "3px";
+            infoBlock.style.padding = "12px";
+            infoBlock.style.border = "1px solid #2a475e";
+            infoBlock.style.width = "auto";
+            infoBlock.style.maxWidth = "100%";
+            infoBlock.style.boxSizing = "border-box";
+
+            // Create header
+            const header = document.createElement("div");
+            header.style.marginBottom = "10px";
+            header.style.paddingBottom = "8px";
+            header.style.borderBottom = "1px solid #2a475e";
+            
+            const headerTitle = document.createElement("div");
+            headerTitle.textContent = "Gamalytic Analytics";
+            headerTitle.style.color = "#66C0F4";
+            headerTitle.style.fontSize = "13px";
+            headerTitle.style.fontWeight = "600";
+            headerTitle.style.letterSpacing = "0.5px";
+            header.appendChild(headerTitle);
+
+            // Create content container
+            const contentContainer = document.createElement("div");
+            contentContainer.style.display = "flex";
+            contentContainer.style.flexDirection = "column";
+            contentContainer.style.gap = "6px";
+
+            // Helper to create metric row (Steam-style)
+            const createMetricRow = (labelText, value, diffValue = null, link = null) => {
+                const row = document.createElement("div");
+                row.style.display = "flex";
+                row.style.justifyContent = "space-between";
+                row.style.alignItems = "flex-start";
+                row.style.marginBottom = "4px";
+
+                const labelDiv = document.createElement("div");
+                labelDiv.textContent = labelText;
+                labelDiv.style.color = "#8F98A0";
+                labelDiv.style.fontSize = "12px";
+                labelDiv.style.flexShrink = "0";
+                labelDiv.style.width = "140px";
+
+                const valueDiv = document.createElement("div");
+                valueDiv.style.flex = "1";
+                valueDiv.style.textAlign = "right";
+                valueDiv.style.display = "flex";
+                valueDiv.style.flexDirection = "column";
+                valueDiv.style.alignItems = "flex-end";
+                valueDiv.style.gap = "2px";
+
+                const valueSpan = document.createElement(link ? "a" : "span");
+                if (link) {
+                    valueSpan.href = link;
+                    valueSpan.target = "_blank";
+                    valueSpan.style.color = "#66C0F4";
+                    valueSpan.style.textDecoration = "none";
+                    valueSpan.addEventListener("mouseenter", () => {
+                        valueSpan.style.textDecoration = "underline";
+                    });
+                    valueSpan.addEventListener("mouseleave", () => {
+                        valueSpan.style.textDecoration = "none";
+                    });
+                } else {
+                    valueSpan.style.color = "#FFFFFF";
+                }
+                valueSpan.textContent = value;
+                valueSpan.style.fontSize = "12px";
+                valueSpan.style.fontWeight = "500";
+
+                valueDiv.appendChild(valueSpan);
+
+                // Add difference if available
+                if (diffValue !== null && diffValue !== 0) {
+                    const diffSpan = document.createElement("span");
+                    diffSpan.textContent = `${diffValue > 0 ? "+" : ""}${fmtInt(diffValue)}`;
+                    diffSpan.style.color = diffValue > 0 ? "#5C7E10" : "#A34C25";
+                    diffSpan.style.fontSize = "11px";
+                    diffSpan.style.fontWeight = "400";
+                    valueDiv.appendChild(diffSpan);
+                }
+
+                row.appendChild(labelDiv);
+                row.appendChild(valueDiv);
+                return row;
+            };
+
+            // Add metrics based on game status
+            if (error) {
+                contentContainer.appendChild(createMetricRow("Ошибка", error));
+            } else if (released) {
+                contentContainer.appendChild(
+                    createMetricRow("Продано копий", fmtInt(copiesSold), differences?.copiesSold)
+                );
+                if (revenue) {
+                    contentContainer.appendChild(
+                        createMetricRow("Доход", fmtMoney(revenue), differences?.revenue)
+                    );
+                }
+                if (reviewScore != null) {
+                    const reviewText = `${Math.round(Number(reviewScore))}% (${fmtInt(reviewCount)})`;
+                    contentContainer.appendChild(
+                        createMetricRow("Оценка", reviewText, differences?.reviewCount)
+                    );
+                }
+                if (peakPlayers) {
+                    contentContainer.appendChild(createMetricRow("Пик игроков", fmtInt(peakPlayers)));
+                }
+                if (currentPlayers) {
+                    contentContainer.appendChild(createMetricRow("Игроков сейчас", fmtInt(currentPlayers)));
+                }
+            } else {
+                if (wishlists) {
+                    contentContainer.appendChild(
+                        createMetricRow("Списки желаний", fmtInt(wishlists), differences?.wishlists)
+                    );
+                }
+                if (releaseDate) {
+                    contentContainer.appendChild(createMetricRow("Дата выхода", fmtDate(releaseDate)));
+                }
+                contentContainer.appendChild(createMetricRow("Статус", "Не выпущено"));
+            }
+
+            // Add cache info (smaller, at bottom)
+            if (isCached && lastVisit) {
+                const cacheInfo = document.createElement("div");
+                cacheInfo.textContent = `Кэш: ${fmtTimeAgo(lastVisit)}`;
+                cacheInfo.style.color = "#6D7882";
+                cacheInfo.style.fontSize = "10px";
+                cacheInfo.style.marginTop = "8px";
+                cacheInfo.style.paddingTop = "8px";
+                cacheInfo.style.borderTop = "1px solid #2a475e";
+                cacheInfo.style.textAlign = "center";
+                contentContainer.appendChild(cacheInfo);
+            }
+
+            // Add link to Gamalytic
+            const linkContainer = document.createElement("div");
+            linkContainer.style.marginTop = "8px";
+            linkContainer.style.paddingTop = "8px";
+            linkContainer.style.borderTop = "1px solid #2a475e";
+            linkContainer.style.textAlign = "center";
+            
+            const link = document.createElement("a");
+            link.href = `https://gamalytic.com/game/${appId}`;
+            link.target = "_blank";
+            link.textContent = "Открыть на Gamalytic →";
+            link.style.color = "#66C0F4";
+            link.style.fontSize = "11px";
+            link.style.textDecoration = "none";
+            link.style.fontWeight = "500";
+            link.addEventListener("mouseenter", () => {
+                link.style.textDecoration = "underline";
+            });
+            link.addEventListener("mouseleave", () => {
+                link.style.textDecoration = "none";
+            });
+            linkContainer.appendChild(link);
+            contentContainer.appendChild(linkContainer);
+
+            // Assemble block
+            infoBlock.appendChild(header);
+            infoBlock.appendChild(contentContainer);
+            mainContainer.appendChild(infoBlock);
+
+            // Insert after publisher or at the end of container
+            const publisherRow = container.querySelector('.dev_row:has(a[href*="/publisher/"])') ||
+                                Array.from(container.querySelectorAll('.dev_row')).find(row => 
+                                    row.textContent.includes('ИЗДАТЕЛЬ') || 
+                                    row.textContent.includes('PUBLISHER')
+                                );
+
+            if (publisherRow && publisherRow.nextSibling) {
+                container.insertBefore(mainContainer, publisherRow.nextSibling);
+            } else if (publisherRow) {
+                container.appendChild(mainContainer);
+            } else {
+                container.appendChild(mainContainer);
+            }
         };
 
-        // Compact view content
-        if (released) {
-            const soldText = `Sold: ${fmtCompact(copiesSold)}`;
-            const revenueText = `Revenue: ${fmtCompact(revenue)}`;
-            const reviewText = `Reviews: ${
-                reviewScore ? Math.round(Number(reviewScore)) + "%" : "N/A"
-            }`;
-
-            compactView.innerHTML = `
-                <div style="font-weight: 600;">${soldText}</div>
-                <div style="font-weight: 600;">${revenueText}</div>
-                <div style="font-weight: 600;">${reviewText}</div>
-            `;
+        // Start trying to insert
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", tryInsert);
         } else {
-            const wishlistText = `Wishlists: ${fmtCompact(wishlists)}`;
-            compactView.innerHTML = `
-                <div style="font-weight: 600;">${wishlistText}</div>
-                <div style="font-weight: 600;">Status: Unreleased</div>
-            `;
-        }
-
-        // Detailed view header
-        const header = document.createElement("div");
-        const gameTitle =
-            document.querySelector(".apphub_AppName")?.textContent ||
-            document.querySelector("h1")?.textContent ||
-            `AppID ${appId}`;
-        header.textContent = gameTitle;
-        header.style.opacity = "0.8";
-        header.style.marginBottom = "6px";
-        header.style.fontWeight = "600";
-        header.style.fontSize = "11px";
-        header.style.maxWidth = "280px";
-        header.style.overflow = "hidden";
-        header.style.textOverflow = "ellipsis";
-        header.style.whiteSpace = "nowrap";
-        detailedView.append(header);
-
-        // Add cache status and time info
-        if (isCached) {
-            const cacheInfo = document.createElement("div");
-            cacheInfo.textContent = `Cached ${fmtTimeAgo(lastVisit)}`;
-            cacheInfo.style.opacity = "0.6";
-            cacheInfo.style.fontSize = "10px";
-            cacheInfo.style.marginBottom = "4px";
-            detailedView.append(cacheInfo);
-        } else if (lastVisit) {
-            const timeInfo = document.createElement("div");
-            timeInfo.textContent = `Last seen ${fmtTimeAgo(lastVisit)}`;
-            timeInfo.style.opacity = "0.6";
-            timeInfo.style.fontSize = "10px";
-            timeInfo.style.marginBottom = "4px";
-            detailedView.append(timeInfo);
-        }
-
-        if (released) {
-            detailedView.append(
-                line("Copies sold", fmtInt(copiesSold), differences?.copiesSold),
-                line("Gross revenue", fmtMoney(revenue), differences?.revenue),
-                line(
-                    "Review score",
-                    reviewScore == null
-                        ? "N/A"
-                        : `${Math.round(Number(reviewScore))}% (${fmtInt(reviewCount)})`,
-                    differences?.reviewCount
-                )
-            );
-
-            // Show additional metrics if available
-            if (peakPlayers) {
-                detailedView.append(line("Peak players", fmtInt(peakPlayers)));
-            }
-            if (currentPlayers) {
-                detailedView.append(line("Current players", fmtInt(currentPlayers)));
-            }
-        } else {
-            // unreleased game
-            if (!(Number(copiesSold) > 0)) {
-                detailedView.append(
-                    line("Wishlists", fmtInt(wishlists), differences?.wishlists)
-                );
-            }
-            if (releaseDate) {
-                detailedView.append(line("Release date", releaseDate));
-            }
-            detailedView.append(line("Status", "Unreleased"));
-        }
-
-        // post-release wishlists only if no sales data
-        if (released && !(Number(copiesSold) > 0)) {
-            detailedView.append(
-                line("Wishlists", fmtInt(wishlists), differences?.wishlists)
-            );
-        }
-
-        if (error) {
-            const err = document.createElement("div");
-            err.textContent = `API error: ${error}`;
-            err.style.marginTop = "6px";
-            err.style.opacity = "0.7";
-            detailedView.append(err);
+            tryInsert();
         }
 
         console.debug("[Gamalytic] Raw API response:", raw);
@@ -377,17 +477,5 @@
             releaseDate,
             released,
         });
-
-        // Add resize listener to update position
-        const updatePosition = () => {
-            const pageWidth = window.innerWidth;
-            const rightPosition =
-                pageWidth > 1260 ? `${(pageWidth - 1260) / 2 + 12}px` : "12px";
-            box.style.right = rightPosition;
-        };
-
-        window.addEventListener("resize", updatePosition);
-
-        document.body.appendChild(box);
     }
 })();
