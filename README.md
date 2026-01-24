@@ -1,6 +1,8 @@
-# Steam Gamalytic Overlay
+# Steam Gamalytic Embedded Block
 
-A Chrome extension that adds Gamalytic game analytics data as an overlay on Steam store pages.
+A Chrome extension that adds Gamalytic game analytics data as an embedded block on Steam store pages.
+
+Fork from https://github.com/batiali/steam-gamalytic-overlay
 
 ## Features
 
@@ -14,7 +16,7 @@ A Chrome extension that adds Gamalytic game analytics data as an overlay on Stea
 1. **Download or clone this repository**
 
     ```bash
-    git clone https://github.com/batiali/steam-gamalytic-overlay.git
+    git clone https://github.com/Korveen/steam-gamalytic-overlay.git
     cd steam-gamalytic-overlay
     ```
 
@@ -31,16 +33,12 @@ A Chrome extension that adds Gamalytic game analytics data as an overlay on Stea
 
 4. **Use the extension**
     - Navigate to any Steam game page (e.g., `https://store.steampowered.com/app/730/`)
-    - Look for the dark overlay box in the top-right corner
-    - Click the overlay to open the game's Gamalytic page
+    - Look for the Gamalytic's embedded data block in the right Steam information block
 
 ## Screenshots
 
-**Compact View (Default):**
-![Compact View](silksong-compact.png)
-
-**Detailed View (On Hover):**
-![Hover View](silksong-hover.png)
+**Default View:**
+![Default View](silksong-compact.png)
 
 ## How it works
 
@@ -69,5 +67,3 @@ The extension uses smart caching to reduce API calls and show data changes:
 This means fewer API calls while still showing meaningful updates when you revisit games.
 
 ---
-
-If you found this useful and enjoy deck-building roguelikes, consider wishlisting our game: [Free of the Land](https://store.steampowered.com/app/3833000/Free_of_the_Land/) on Steam!
