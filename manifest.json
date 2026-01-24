@@ -1,22 +1,26 @@
 {
-    "manifest_version": 3,
-    "name": "Steam + Gamalytic overlay",
-    "version": "0.0.3",
-    "permissions": ["storage"],
-    "host_permissions": [
-        "https://store.steampowered.com/*",
-        "https://api.gamalytic.com/*"
-    ],
-    "content_scripts": [
-        {
-            "matches": ["https://store.steampowered.com/app/*"],
-            "js": ["content.js"],
-            "run_at": "document_idle"
-        }
-    ],
-    "background": { "service_worker": "bg.js" },
-    "action": { 
-        "default_title": "Steam + Gamalytic overlay",
-        "default_popup": "popup.html"
-    }
+	"manifest_version": 3,
+	"name": "Steam + Gamalytic overlay",
+	"version": "0.0.4",
+	"permissions": ["storage"],
+	"host_permissions":
+	[
+		"https://store.steampowered.com/*",
+		"https://api.gamalytic.com/*"
+	],
+	"content_scripts":
+	[{
+		"matches": ["https://store.steampowered.com/app/*"],
+		"js": ["content.js"],
+		"run_at": "document_idle"
+	}],
+	"background":
+	{
+		"service_worker": "bg.js"
+	},
+	"action":
+	{
+		"default_title": "Steam + Gamalytic overlay",
+		"default_popup": "popup.html"
+	}
 }
