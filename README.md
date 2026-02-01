@@ -16,7 +16,7 @@ Fork from https://github.com/batiali/steam-gamalytic-overlay
 1. **Download or clone this repository**
 
     ```bash
-    git clone https://github.com/Korveen/steam-gamalytic-overlay.git
+    git clone https://github.com/Korveen/Steam-Gamalytic-Embedded-Extension.git
     cd steam-gamalytic-overlay
     ```
 
