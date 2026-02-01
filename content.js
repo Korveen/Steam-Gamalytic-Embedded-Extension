@@ -58,7 +58,7 @@
 
 	// Get translation function
 	function t(key) {
-		return translations[currentLang] ?. [key] || translations.ru[key] || key;
+		return translations[currentLang] ?.[key] || translations.ru[key] || key;
 	}
 
 	chrome.runtime.sendMessage({
@@ -360,11 +360,15 @@
 				infoBlock.style.maxWidth = "100%";
 				infoBlock.style.boxSizing = "border-box";
 
-				// Create header (без переключателя языка)
+				// Create header
 				const header = document.createElement("div");
 				header.style.marginBottom = "10px";
 				header.style.paddingBottom = "8px";
 				header.style.borderBottom = "1px solid #2a475e";
+				header.style.display = "flex";
+				header.style.justifyContent = "space-between";
+				header.style.alignItems = "center";
+				header.style.position = "relative";
 
 				const headerTitle = document.createElement("div");
 				headerTitle.textContent = t('title');
@@ -373,6 +377,178 @@
 				headerTitle.style.fontWeight = "600";
 				headerTitle.style.letterSpacing = "0.5px";
 				header.appendChild(headerTitle);
+
+				const settingsButton = document.createElement("button");
+				settingsButton.innerHTML = "⚙️";
+				settingsButton.style.background = "transparent";
+				settingsButton.style.border = "1px solid transparent";
+				settingsButton.style.color = "#66C0F4";
+				settingsButton.style.cursor = "pointer";
+				settingsButton.style.fontSize = "14px";
+				settingsButton.style.padding = "4px 6px";
+				settingsButton.style.borderRadius = "2px";
+				settingsButton.style.display = "flex";
+				settingsButton.style.alignItems = "center";
+				settingsButton.style.justifyContent = "center";
+				settingsButton.style.width = "24px";
+				settingsButton.style.height = "24px";
+				settingsButton.style.transition = "all 0.15s ease";
+				settingsButton.title = currentLang === 'ru' ? 'Настройки' : 'Settings';
+
+				settingsButton.addEventListener("mouseenter", () => {
+					settingsButton.style.background = "#2a475e";
+					settingsButton.style.borderColor = "#66C0F4";
+				});
+				settingsButton.addEventListener("mouseleave", () => {
+					settingsButton.style.background = "transparent";
+					settingsButton.style.borderColor = "transparent";
+				});
+
+				const createSettingsModal = () => {
+					const modal = document.createElement("div");
+					modal.id = "gamalytic-settings-modal";
+					modal.style.display = "none";
+					modal.style.position = "fixed";
+					modal.style.top = "0";
+					modal.style.left = "0";
+					modal.style.width = "100%";
+					modal.style.height = "100%";
+					modal.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+					modal.style.zIndex = "10000";
+					modal.style.justifyContent = "center";
+					modal.style.alignItems = "center";
+
+					const modalContent = document.createElement("div");
+					modalContent.style.backgroundColor = "#1b2838";
+					modalContent.style.border = "1px solid #2a475e";
+					modalContent.style.borderRadius = "5px";
+					modalContent.style.padding = "20px";
+					modalContent.style.minWidth = "300px";
+					modalContent.style.maxWidth = "400px";
+					modalContent.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.5)";
+
+					const modalHeader = document.createElement("div");
+					modalHeader.style.display = "flex";
+					modalHeader.style.justifyContent = "space-between";
+					modalHeader.style.alignItems = "center";
+					modalHeader.style.marginBottom = "16px";
+					modalHeader.style.paddingBottom = "12px";
+					modalHeader.style.borderBottom = "1px solid #2a475e";
+
+					const modalTitle = document.createElement("h3");
+					modalTitle.textContent = currentLang === 'ru' ? 'Настройки' : 'Settings';
+					modalTitle.style.margin = "0";
+					modalTitle.style.color = "#66C0F4";
+					modalTitle.style.fontSize = "16px";
+					modalTitle.style.fontWeight = "600";
+
+					const closeButton = document.createElement("button");
+					closeButton.innerHTML = "×";
+					closeButton.style.background = "transparent";
+					closeButton.style.border = "none";
+					closeButton.style.color = "#8F98A0";
+					closeButton.style.cursor = "pointer";
+					closeButton.style.fontSize = "24px";
+					closeButton.style.lineHeight = "1";
+					closeButton.style.padding = "0";
+					closeButton.style.width = "24px";
+					closeButton.style.height = "24px";
+					closeButton.addEventListener("mouseenter", () => {
+						closeButton.style.color = "#ffffff";
+					});
+					closeButton.addEventListener("mouseleave", () => {
+						closeButton.style.color = "#8F98A0";
+					});
+					closeButton.addEventListener("click", () => {
+						modal.style.display = "none";
+					});
+
+					modalHeader.appendChild(modalTitle);
+					modalHeader.appendChild(closeButton);
+
+					const languageLabel = document.createElement("label");
+					languageLabel.textContent = currentLang === 'en' ? 'Language:' : 'Язык:';
+					languageLabel.style.display = "block";
+					languageLabel.style.color = "#8F98A0";
+					languageLabel.style.fontSize = "13px";
+					languageLabel.style.marginBottom = "8px";
+
+					const languageSelect = document.createElement("select");
+					languageSelect.style.width = "100%";
+					languageSelect.style.padding = "8px";
+					languageSelect.style.background = "#2a475e";
+					languageSelect.style.color = "#ffffff";
+					languageSelect.style.border = "1px solid #66C0F4";
+					languageSelect.style.borderRadius = "3px";
+					languageSelect.style.fontSize = "13px";
+					languageSelect.style.cursor = "pointer";
+
+					const optionEn = document.createElement("option");
+					optionEn.value = "en";
+					optionEn.textContent = "English";
+
+					const optionRu = document.createElement("option");
+					optionRu.value = "ru";
+					optionRu.textContent = "Русский";
+
+					languageSelect.appendChild(optionEn);
+					languageSelect.appendChild(optionRu);
+					languageSelect.value = currentLang;
+
+					languageSelect.addEventListener("change", (e) => {
+						const lang = e.target.value;
+						chrome.storage.local.set({
+							gamalytic_lang: lang
+						}, () => {
+							const statusMsg = document.createElement("div");
+							statusMsg.textContent = lang === 'en' ?
+								'Language changed. Reload the Steam page.':
+								'Язык изменён. Перезагрузите страницу Steam.';
+							statusMsg.style.marginTop = "12px";
+							statusMsg.style.padding = "8px";
+							statusMsg.style.background = "#2a475e";
+							statusMsg.style.borderRadius = "3px";
+							statusMsg.style.fontSize = "12px";
+							statusMsg.style.color = "#5C7E10";
+							statusMsg.style.textAlign = "center";
+
+							const existingMsg = modalContent.querySelector('.status-msg');
+							if (existingMsg) existingMsg.remove();
+
+							statusMsg.className = 'status-msg';
+							modalContent.appendChild(statusMsg);
+
+							setTimeout(() => {
+								statusMsg.remove();
+							}, 3000);
+						});
+					});
+
+					modalContent.appendChild(modalHeader);
+					modalContent.appendChild(languageLabel);
+					modalContent.appendChild(languageSelect);
+
+					modal.appendChild(modalContent);
+
+					modal.addEventListener("click", (e) => {
+						if (e.target === modal) {
+							modal.style.display = "none";
+						}
+					});
+
+					document.body.appendChild(modal);
+					return modal;
+				};
+
+				let settingsModal = null;
+				settingsButton.addEventListener("click", () => {
+					if (!settingsModal) {
+						settingsModal = createSettingsModal();
+					}
+					settingsModal.style.display = "flex";
+				});
+
+				header.appendChild(settingsButton);
 
 				// Create content container
 				const contentContainer = document.createElement("div");
