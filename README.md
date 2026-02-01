@@ -17,7 +17,7 @@ Fork from https://github.com/batiali/steam-gamalytic-overlay
 
     ```bash
     git clone https://github.com/Korveen/Steam-Gamalytic-Embedded-Extension.git
-    cd steam-gamalytic-overlay
+    cd steam-gamalytic-Eembedded-extension
     ```
 
 2. **Open Chrome Extensions page**
